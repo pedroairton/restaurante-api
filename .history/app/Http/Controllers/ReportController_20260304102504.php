@@ -13,49 +13,9 @@ class ReportController extends Controller
 {
     public function index(ReportRequest $request)
     {
-        $startDate = Carbon::parse($request->start_date)->startOfDay();
-        $endDate = Carbon::parse($request->end_date)->endOfDay();
-
-        $revenue = $this->getTotalRevenue($startDate, $endDate);
-        $totalOrders = $this->getTotalOrders($startDate, $endDate);
-        $avgTicket = $totalOrders > 0 ? $revenue / $totalOrders : 0;
-
-        return response()->json([
-            'period' => [
-                'start_date' => $startDate->toDateString(),
-                'end_date' => $endDate->toDateString(),
-            ],
-            'total_revenue' => round($revenue, 2),
-            'total_orders' => $totalOrders,
-            'average_ticket' => round($avgTicket, 2),
-            'sales_by_category' => $this->getSalesByCategory($startDate, $endDate),
-            'top_products' => $this->getTopProducts($startDate, $endDate),
-            'daily_revenue' => $this->getDailyRevenue($startDate, $endDate),
-        ]);
+        $startDate = Carbon::parse($request->start_date);
+        $endDate = Carbon::parse($request->end_date);
     }
-    // public function exportPdf(ReportRequest $request){
-    //     $startDate = Carbon::parse($request->start_date)->startOfDay();
-    //     $endDate = Carbon::parse($request->end_date)->endOfDay();
-
-    //     $revenue = $this->getTotalRevenue($startDate, $endDate);
-    //     $totalOrders = $this->getTotalOrders($startDate, $endDate);
-    //     $avgTicket = $totalOrders > 0 ? $revenue / $totalOrders : 0;
-
-    //     $data = [
-    //         'period' => [
-    //             'start' => $startDate->format('d/m/Y'),
-    //             'end' => $endDate->format('d/m/Y'),
-    //         ],
-    //         'total_revenue' => $revenue,
-    //         'total_orders' => $totalOrders,
-    //         'average_ticket' => $avgTicket,
-    //         'sales_by_category' => $this->getSalesByCategory($startDate, $endDate),
-    //         'top_products' => $this->getTopProducts($startDate, $endDate),
-    //     ];
-
-    //     $pdf = PDF::loadView('reports.pdf', $data);
-    //     return $pdf->download("relatorio_{$startDate->format('Y-m-d')}_{$endDate->format('Y-m-d')}.pdf");
-    // }
 
     private function getTotalRevenue(Carbon $start, Carbon $end)
     {
