@@ -21,9 +21,9 @@ class AuthController extends Controller
         $token = $user->createToken('auth_token')->plainTextToken;
 
         return response()->json([
-            'message' => 'Login realizado',
             'user' => $user,
             'token' => $token,
+            'token_type' => 'Bearer',
         ]);
     }
     public function logout(){
@@ -36,5 +36,23 @@ class AuthController extends Controller
 
     public function me(){
         return response()->json(auth()->user());
+    }
+
+    public function check(){
+        $user = auth()->user();
+        $token = $user->currentAccessToken();
+
+        return response()->json([
+            'authenticated' => true,
+            'user' => [
+                'name' => $user->name,
+                'email' => $user->email
+            ],
+            // 'token' => [
+            //     'name'         => $token->name,
+            //     'last_used_at' => $token->last_used_at,
+            //     'expires_at'   => $token->expires_at,
+            // ],
+        ]);
     }
 }
