@@ -78,32 +78,52 @@ class ProductController extends Controller
 
     public function salesStats(Product $product, Request $request)
     {
-        $weeklySales = OrderItem::query()
+        $startDate = Carbon::now()->subWeeks(3)->startOfWeek();
+        $endDate = Carbon::now()->endOfWeek();
+
+        $weeklyRaw = OrderItem::query()
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
             ->where('order_items.product_id', $product->id)
             ->where('orders.status', 'paid')
-            ->whereBetween('orders.created_at', [
-                Carbon::now()->subWeeks(4)->startOfWeek(),
-                Carbon::now()->endOfWeek()
-            ])
+            ->whereBetween('orders.created_at', [$startDate, $endDate])
             ->select(
                 DB::raw('YEARWEEK(orders.created_at, 1) as week'),
                 DB::raw('MIN(DATE(orders.created_at)) as week_start'),
                 DB::raw('SUM(order_items.quantity) as total_sold'),
                 DB::raw('SUM(order_items.subtotal) as total_revenue')
             )
-            ->groupBy('week')
-            ->orderBy('week')
-            ->get();
+            ->groupBy(DB::raw('YEARWEEK(orders.created_at, 1)'))
+            ->get()
+            ->keyBy('week');
 
-        $monthlySales = OrderItem::query()
+        // monta timeline com zeros
+        $weeklySales = collect();
+
+        $current = $startDate->copy();
+
+        while ($current <= $endDate) {
+            $weekKey = $current->format('oW'); // ISO year + week
+
+            $data = $weeklyRaw->get($weekKey);
+
+            $weeklySales->push([
+                'week' => $weekKey,
+                'week_start' => $current->copy()->startOfWeek()->toDateString(),
+                'total_sold' => $data->total_sold ?? 0,
+                'total_revenue' => $data->total_revenue ?? 0,
+            ]);
+
+            $current->addWeek();
+        }
+
+        $startDate = Carbon::now()->subMonths(5)->startOfMonth();
+        $endDate = Carbon::now()->endOfMonth();
+
+        $monthlyRaw = OrderItem::query()
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
             ->where('order_items.product_id', $product->id)
             ->where('orders.status', 'paid')
-            ->whereBetween('orders.created_at', [
-                Carbon::now()->subMonths(6)->startOfMonth(),
-                Carbon::now()->endOfMonth()
-            ])
+            ->whereBetween('orders.created_at', [$startDate, $endDate])
             ->select(
                 DB::raw('YEAR(orders.created_at) as year'),
                 DB::raw('MONTH(orders.created_at) as month'),
@@ -111,9 +131,28 @@ class ProductController extends Controller
                 DB::raw('SUM(order_items.subtotal) as total_revenue')
             )
             ->groupBy('year', 'month')
-            ->orderBy('year')
-            ->orderBy('month')
-            ->get();
+            ->get()
+            ->keyBy(fn($item) => $item->year . str_pad($item->month, 2, '0', STR_PAD_LEFT));
+
+        // monta timeline com zeros
+        $monthlySales = collect();
+
+        $current = $startDate->copy();
+
+        while ($current <= $endDate) {
+            $key = $current->format('Ym');
+
+            $data = $monthlyRaw->get($key);
+
+            $monthlySales->push([
+                'year' => $current->year,
+                'month' => $current->month,
+                'total_sold' => $data->total_sold ?? 0,
+                'total_revenue' => $data->total_revenue ?? 0,
+            ]);
+
+            $current->addMonth();
+        }
 
         $totals = OrderItem::query()
             ->join('orders', 'order_items.order_id', '=', 'orders.id')
