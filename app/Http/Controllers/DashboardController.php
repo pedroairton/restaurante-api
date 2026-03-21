@@ -49,6 +49,13 @@ class DashboardController extends Controller
                 ]);
             }
 
+            if($period === 'month') {
+                $query->whereBetween('orders.created_at', [
+                    Carbon::now()->startOfMonth(), 
+                    Carbon::now()->endOfMonth()
+                ]);
+            }
+
             return response()->json($query->get());
     }
 
