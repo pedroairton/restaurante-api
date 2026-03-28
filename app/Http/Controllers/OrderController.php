@@ -76,6 +76,70 @@ class OrderController extends Controller
     {
         return response()->json($order->load(['table', 'items.product', 'user']));
     }
+    public function update(StoreOrderRequest $request, Order $order)
+    {
+        // Só permite editar pedidos pendentes ou em preparo
+        if (!in_array($order->status, ['pending', 'preparing'])) {
+            return response()->json([
+                'message' => 'Só é possível editar pedidos pendentes ou em preparo.',
+            ], 422);
+        }
+
+        $validated = $request->validated();
+
+        return DB::transaction(function () use ($validated, $order) {
+
+            // 1. Remove todos os itens antigos
+            $order->items()->delete();
+
+            // 2. Cria os novos itens
+            $total = 0;
+
+            foreach ($validated['items'] as $item) {
+                $product = Product::findOrFail($item['product_id']);
+                $subtotal = $product->price * $item['quantity'];
+
+                $order->items()->create([
+                    'product_id' => $product->id,
+                    'quantity' => $item['quantity'],
+                    'unit_price' => $product->price,
+                    'subtotal' => $subtotal,
+                ]);
+
+                $total += $subtotal;
+            }
+
+            // 3. Atualiza o pedido
+            $order->update([
+                'table_id' => $validated['table_id'],
+                'observations' => $validated['observations'] ?? null,
+                'total' => $total,
+            ]);
+
+            // 4. Gerencia status das mesas se a mesa mudou
+            if ($order->wasChanged('table_id')) {
+                $oldTableId = $order->getOriginal('table_id');
+
+                // Libera mesa antiga se não tem outros pedidos ativos
+                $hasActiveOrders = Order::where('table_id', $oldTableId)
+                    ->whereNotIn('status', ['paid', 'cancelled'])
+                    ->where('id', '!=', $order->id)
+                    ->exists();
+
+                if (!$hasActiveOrders) {
+                    Table::where('id', $oldTableId)->update(['status' => 'available']);
+                }
+
+                // Ocupa nova mesa
+                Table::where('id', $validated['table_id'])->update(['status' => 'occupied']);
+            }
+
+            return response()->json([
+                'message' => 'Pedido atualizado com sucesso.',
+                'order' => $order->load(['table', 'items.product', 'user']),
+            ]);
+        });
+    }
     public function updateStatus(UpdateOrderStatusRequest $request, Order $order)
     {
         $newStatus = $request->validated()['status'];
@@ -88,7 +152,7 @@ class OrderController extends Controller
                 ->where('id', '!=', $order->id)
                 ->exists();
 
-            if(!$activeOrdersOnTable){
+            if (!$activeOrdersOnTable) {
                 Table::where('id', $order->table_id)
                     ->update(['status' => 'available']);
             }
@@ -102,7 +166,7 @@ class OrderController extends Controller
 
     public function destroy(Order $order)
     {
-        if($order->status === 'paid'){
+        if ($order->status === 'paid') {
             return response()->json([
                 'message' => 'Não é possível excluir um pedido pago'
             ], 422);
@@ -116,7 +180,7 @@ class OrderController extends Controller
             ->where('id', '!=', $order->id)
             ->exists();
 
-        if(!$activeOrdersOnTable) {
+        if (!$activeOrdersOnTable) {
             Table::where('id', $order->table_id)
                 ->update(['status' => 'available']);
         }

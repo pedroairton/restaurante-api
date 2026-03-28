@@ -39,6 +39,7 @@ Route::prefix('v1')->group(function () {
 
         Route::patch('/orders/{order}/status', [OrderController::class, 'updateStatus']);
         Route::apiResource('orders', OrderController::class);
+        Route::put('/orders/{order}', [OrderController::class, 'update']);
 
         Route::get('/reports', [ReportController::class, 'index']);
         // Route::get('/reports/export-pdf', [ReportController::class, 'exportPdf']);
