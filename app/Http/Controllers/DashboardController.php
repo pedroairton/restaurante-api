@@ -22,6 +22,7 @@ class DashboardController extends Controller
             'monthly_orders' => $this->getMonthlyOrders($month, $year),
             'total_products' => Product::active()->count(),
             'weekly_sales' => $this->getWeeklySales(),
+            'avg_ticket' => $this->getAvgTicket()
         ]);
     }
 
@@ -96,5 +97,11 @@ class DashboardController extends Controller
             ];
         }
         return $result;
+    }
+
+    private function getAvgTicket(): float
+    {
+        $avgTicket = Order::paid()->avg('total');
+        return (float) Order::paid()->avg('total');
     }
 }
